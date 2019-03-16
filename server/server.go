@@ -90,6 +90,17 @@ func (n *masterNode) broadcastCommandsToRun() {
 				slave.Close()
 				delete((*n).slaves, slave)
 			}
+			_, slaveOutput, err := slave.ReadMessage()
+			if err != nil {
+				log.Println("Error reading response from slave")
+			}
+			fmt.Printf("Running %s returned \n %s", string(command), slaveOutput)
 		}
+	}
+}
+
+func (n *masterNode) readFromConnection() {
+	for {
+
 	}
 }
