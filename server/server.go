@@ -35,15 +35,15 @@ func main() {
 	go handleMessages()
 
 	// Start the server on localhost port 8000 and log any errors
-	log.Println("http server started on :8000")
 	err := http.ListenAndServe(":8000", nil)
 	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
+		log.Fatal("Stopped Server: ", err)
 	}
 }
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// Upgrade initial GET request to a websocket
+	fmt.Printf("Reveived Connection")
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -56,11 +56,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		_, inboundMessage, err := ws.ReadMessage()
+		fmt.Println("Waiting for messages")
 		if err != nil {
 			log.Printf("error: %v", err)
 			delete(clients, ws)
 			break
 		}
+		log.Printf("Running `%s` command", inboundMessage)
 		output, err := exec.Command(string(inboundMessage)).Output()
 		if err != nil {
 			log.Printf("Error running command: %s", err)
@@ -75,7 +77,7 @@ func handleMessages() {
 		fmt.Println("Listening")
 		// Grab the next message from the broadcast channel
 		msg := <-broadcast
-		fmt.Printf("Received message: %+v\n", msg)
+		fmt.Printf("Received message: %+v\n", string(msg))
 		// Send it out to every client that is currently connected
 		for client := range clients {
 			err := client.WriteJSON(msg)

@@ -12,13 +12,13 @@ import (
 // CLIENT
 
 func main() {
-	connection, response, err := websocket.DefaultDialer.Dial("ws://localhost:8000/ws", nil)
+	connection, _, err := websocket.DefaultDialer.Dial("ws://localhost:8000/ws", nil)
 	if err != nil {
 		msg := fmt.Errorf("Error opening connection %+v", err)
 		fmt.Println(msg)
 	} else {
 		inputReader := bufio.NewReader(os.Stdin)
-		fmt.Printf("WS Connection Established: %+v", response)
+		fmt.Println("WS Connection Established with server")
 		for {
 			command, err := inputReader.ReadBytes('\n')
 			command = command[:len(command)-1]
