@@ -1,16 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net/http"
-	"os/exec"
+	"os"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
-
-var clients = make(map[*websocket.Conn]bool) // connected clients
-var broadcast = make(chan []byte)            // broadcast channel
 
 // Configure the upgrader
 var upgrader = websocket.Upgrader{
@@ -19,20 +18,22 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// Message : Define our message object
-type Message struct {
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Message  string `json:"message"`
+type masterNode struct {
+	slaves    map[*websocket.Conn]bool // connected clients
+	broadcast chan []byte              // broadcast channel
 }
 
 func main() {
+	currentNode := masterNode{}
+	currentNode.slaves = make(map[*websocket.Conn]bool)
+	currentNode.broadcast = make(chan []byte)
 
 	// Configure websocket route
-	http.HandleFunc("/ws", handleConnections)
+	http.HandleFunc("/ws", currentNode.handleConnections)
 
 	// Start listening for incoming chat messages
-	go handleMessages()
+	go currentNode.readInputCommands()
+	go currentNode.broadcastCommandsToRun()
 
 	// Start the server on localhost port 8000 and log any errors
 	err := http.ListenAndServe(":8000", nil)
@@ -41,9 +42,26 @@ func main() {
 	}
 }
 
-func handleConnections(w http.ResponseWriter, r *http.Request) {
+func (n *masterNode) readInputCommands() {
+
+	inputReader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Println("Enter commands to run:")
+		command, err := inputReader.ReadBytes('\n')
+		command = command[:len(command)-1]
+		if err != nil {
+			fmt.Println("Error reading command to send")
+		}
+		fmt.Printf("Read %s from input\n", command)
+		time.Sleep(1 * time.Second)
+		n.broadcast <- command
+	}
+
+}
+
+func (n *masterNode) handleConnections(w http.ResponseWriter, r *http.Request) {
 	// Upgrade initial GET request to a websocket
-	fmt.Printf("Reveived Connection")
+	fmt.Println("Reveived Connection")
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -52,39 +70,25 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	defer ws.Close()
 
 	// Register our new client
-	clients[ws] = true
+	(*n).slaves[ws] = true
 
-	for {
-		_, inboundMessage, err := ws.ReadMessage()
-		fmt.Println("Waiting for messages")
-		if err != nil {
-			log.Printf("error: %v", err)
-			delete(clients, ws)
-			break
-		}
-		log.Printf("Running `%s` command", inboundMessage)
-		output, err := exec.Command(string(inboundMessage)).Output()
-		if err != nil {
-			log.Printf("Error running command: %s", err)
-		}
-		// Send the newly received message to the broadcast channel
-		broadcast <- output
-	}
+	n.readInputCommands()
+
 }
 
-func handleMessages() {
+func (n *masterNode) broadcastCommandsToRun() {
 	for {
-		fmt.Println("Listening")
+		fmt.Println("Listening for commands to run:")
 		// Grab the next message from the broadcast channel
-		msg := <-broadcast
-		fmt.Printf("Received message: %+v\n", string(msg))
+		command := <-n.broadcast
+		fmt.Printf("Received message: %+v\n", string(command))
 		// Send it out to every client that is currently connected
-		for client := range clients {
-			err := client.WriteJSON(msg)
+		for slave := range n.slaves {
+			err := slave.WriteMessage(1, command)
 			if err != nil {
 				log.Printf("error: %v", err)
-				client.Close()
-				delete(clients, client)
+				slave.Close()
+				delete((*n).slaves, slave)
 			}
 		}
 	}
