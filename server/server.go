@@ -47,12 +47,12 @@ func (n *masterNode) readInputCommands() {
 	inputReader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Println("Enter commands to run:")
+		fmt.Print(">>> ")
 		command, err := inputReader.ReadBytes('\n')
 		command = command[:len(command)-1]
 		if err != nil {
 			fmt.Println("Error reading command to send")
 		}
-		fmt.Printf("Read %s from input\n", command)
 		time.Sleep(1 * time.Second)
 		n.broadcast <- command
 	}
@@ -78,29 +78,30 @@ func (n *masterNode) handleConnections(w http.ResponseWriter, r *http.Request) {
 
 func (n *masterNode) broadcastCommandsToRun() {
 	for {
-		fmt.Println("Listening for commands to run:")
 		// Grab the next message from the broadcast channel
 		command := <-n.broadcast
-		fmt.Printf("Received message: %+v\n", string(command))
-		// Send it out to every client that is currently connected
+		// Send it out to every slave that is currently connected
 		for slave := range n.slaves {
-			err := slave.WriteMessage(1, command)
-			if err != nil {
-				log.Printf("error: %v", err)
-				slave.Close()
-				delete((*n).slaves, slave)
-			}
-			_, slaveOutput, err := slave.ReadMessage()
-			if err != nil {
-				log.Println("Error reading response from slave")
-			}
-			fmt.Printf("Running %s returned \n %s", string(command), slaveOutput)
+			n.writeToSocket(slave, command)
+			fmt.Println(string(n.readFromSocket(slave)))
 		}
 	}
 }
 
-func (n *masterNode) readFromConnection() {
-	for {
-
+func (n *masterNode) readFromSocket(connection *websocket.Conn) []byte {
+	_, slaveOutput, err := connection.ReadMessage()
+	if err != nil {
+		log.Println("Error reading response from slave")
 	}
+	return slaveOutput
+}
+
+func (n *masterNode) writeToSocket(connection *websocket.Conn, payload []byte) error {
+	err := connection.WriteMessage(1, payload)
+	if err != nil {
+		log.Printf("error: %v", err)
+		connection.Close()
+		delete((*n).slaves, connection)
+	}
+	return err
 }

