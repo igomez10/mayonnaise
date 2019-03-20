@@ -1,5 +1,13 @@
 ### Mayonaise
 
+#### UML
+
+
+- [class diagram](https://drive.google.com/file/d/1wuLOeAyHpikEeDS1eUIts6C0kMiApF31/view?usp=sharing)
+
+- [client server interaction](https://drive.google.com/file/d/1Rp7O8UJIbLV_HGRlFTIDxu93Qr4aytoo/view?usp=sharing)
+
+
 Using websockets to pass linux commands between a server and a client
 
 
